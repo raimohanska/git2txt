@@ -8,7 +8,7 @@
   },
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "ava"
   },
   "keywords": [
     "cli",
@@ -28,10 +28,23 @@
     "meow": "^12.0.1",
     "ora": "^7.0.1"
   },
+  "devDependencies": {
+    "ava": "^5.3.1"
+  },
   "engines": {
     "node": ">=18"
   },
   "files": [
     "index.js"
-  ]
+  ],
+  "ava": {
+    "files": [
+      "test/**/*"
+    ],
+    "timeout": "2m",
+    "nodeArguments": [
+      "--experimental-modules",
+      "--no-warnings"
+    ]
+  }
 }
