@@ -1,4 +1,4 @@
-# git2txt-cli
+# git2txt
 
 Convert GitHub repositories to text files with ease. This CLI tool downloads a repository and concatenates its contents into a single text file, making it perfect for analysis, documentation, or AI training purposes.
 
