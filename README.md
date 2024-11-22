@@ -32,7 +32,7 @@ git2txt https://github.com/username/repository
 
 ```
 --output, -o     Specify output file path (default: repo-name.txt)
---threshold, -t  Set file size threshold in MB (default: 0.5)
+--threshold, -t  Set file size threshold in MB (default: 0.1)
 --include-all    Include all files regardless of size or type
 --help          Show help
 --version       Show version
@@ -62,7 +62,7 @@ git2txt https://github.com/username/repository --include-all
 
 ## Default Behavior
 
-- Files larger than 500KB are excluded by default
+- Files larger than 100KB are excluded by default
 - Binary files are automatically excluded
 - The output file is created in the current directory
 - File paths and contents are separated by clear markers
