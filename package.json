@@ -1,14 +1,16 @@
 {
   "name": "git2txt",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "CLI tool to convert GitHub repositories to text files",
   "main": "index.js",
   "bin": {
-    "git2txt": "index.js"
+    "git2txt": "./index.js"
   },
   "type": "module",
   "scripts": {
-    "test": "ava"
+    "test": "chmod +x index.js && ava",
+    "prepare": "chmod +x index.js",
+    "postinstall": "chmod +x index.js"
   },
   "keywords": [
     "cli",
