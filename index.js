@@ -1,5 +1,22 @@
 #!/usr/bin/env node
 
+/**
+ * git2txt - A command-line tool to convert GitHub repositories into readable text files
+ * 
+ * This tool clones a GitHub repository, processes its text files, and combines them
+ * into a single output file. It's useful for code review, analysis, and documentation
+ * purposes.
+ * 
+ * Features:
+ * - Supports public GitHub repositories
+ * - Filters binary and large files
+ * - Customizable file size threshold
+ * - Debug mode for troubleshooting
+ * - Progress indicators for long operations
+ * 
+ * @module git2txt
+ */
+
 import meow from 'meow';
 import ora from 'ora';
 import chalk from 'chalk';
@@ -15,6 +32,7 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+// CLI help text with usage instructions and examples
 const helpText = `
   ${chalk.bold('Usage')}
     $ git2txt <repository-url>
@@ -32,7 +50,11 @@ const helpText = `
     $ git2txt https://github.com/username/repository --output=output.txt
 `;
 
-// Prevent process.exit in test environment
+/**
+ * Custom exit function that handles both production and test environments
+ * @param {number} code - Exit code to return
+ * @throws {Error} In test environment instead of exiting
+ */
 const exit = (code) => {
     if (process.env.NODE_ENV === 'test') {
         throw new Error(`Exit called with code: ${code}`);
@@ -41,6 +63,7 @@ const exit = (code) => {
     }
 };
 
+// Initialize CLI parser with meow
 export const cli = meow(helpText, {
     importMeta: import.meta,
     flags: {
@@ -64,6 +87,12 @@ export const cli = meow(helpText, {
     }
 });
 
+/**
+ * Normalizes various GitHub URL formats to a consistent format
+ * @param {string} url - The GitHub repository URL to normalize
+ * @returns {string} Normalized GitHub URL
+ * @throws {Error} If URL format is invalid
+ */
 function normalizeGitHubUrl(url) {
     try {
         // Remove trailing slashes
@@ -90,6 +119,12 @@ function normalizeGitHubUrl(url) {
     }
 }
 
+/**
+ * Validates the command line input
+ * @param {string[]} input - Command line arguments
+ * @returns {Promise<string>} Validated repository URL
+ * @throws {Error} If input is missing or invalid
+ */
 export async function validateInput(input) {
     if (!input || input.length === 0) {
         throw new Error('Repository URL is required');
@@ -103,6 +138,12 @@ export async function validateInput(input) {
     return url;
 }
 
+/**
+ * Downloads a GitHub repository to a temporary directory
+ * @param {string} url - GitHub repository URL
+ * @returns {Promise<Object>} Object containing temporary directory path and repository name
+ * @throws {Error} If download fails
+ */
 export async function downloadRepository(url) {
     const spinner = process.env.NODE_ENV !== 'test' ? ora('Downloading repository...').start() : null;
     const tempDir = path.join(os.tmpdir(), `git2txt-${Date.now()}`);
@@ -159,6 +200,15 @@ export async function downloadRepository(url) {
     }
 }
 
+/**
+ * Processes files in the repository directory and combines them into a single text output
+ * @param {string} directory - Path to the repository directory
+ * @param {Object} options - Processing options
+ * @param {number} options.threshold - File size threshold in MB
+ * @param {boolean} options.includeAll - Whether to include all files regardless of size/type
+ * @returns {Promise<string>} Combined content of all processed files
+ * @throws {Error} If file processing fails
+ */
 export async function processFiles(directory, options) {
     let spinner = process.env.NODE_ENV !== 'test' ? ora('Processing files...').start() : null;
     const thresholdBytes = options.threshold * 1024 * 1024;
@@ -166,6 +216,10 @@ export async function processFiles(directory, options) {
     let processedFiles = 0;
     let skippedFiles = 0;
 
+    /**
+     * Recursively processes files in a directory
+     * @param {string} dir - Directory to process
+     */
     async function processDirectory(dir) {
         const entries = await fs.readdir(dir, { withFileTypes: true });
         
@@ -244,6 +298,13 @@ export async function processFiles(directory, options) {
     }
 }
 
+/**
+ * Writes the processed content to an output file
+ * @param {string} content - Content to write
+ * @param {string} outputPath - Path to the output file
+ * @returns {Promise<void>}
+ * @throws {Error} If writing fails
+ */
 export async function writeOutput(content, outputPath) {
     let spinner = process.env.NODE_ENV !== 'test' ? ora('Writing output file...').start() : null;
 
@@ -259,6 +320,11 @@ export async function writeOutput(content, outputPath) {
     }
 }
 
+/**
+ * Cleans up temporary files and directories
+ * @param {string} directory - Directory to clean up
+ * @returns {Promise<void>}
+ */
 export async function cleanup(directory) {
     try {
         await fs.rm(directory, { recursive: true, force: true });
@@ -269,6 +335,10 @@ export async function cleanup(directory) {
     }
 }
 
+/**
+ * Main application function that orchestrates the entire process
+ * @returns {Promise<void>}
+ */
 export async function main() {
     let tempDir;
     try {

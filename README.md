@@ -13,7 +13,7 @@ Convert GitHub repositories to text files with ease. This CLI tool downloads a r
 ## Installation
 
 ```bash
-npm install -g git2txt-cli
+npm install -g git2txt
 ```
 
 ## Usage
