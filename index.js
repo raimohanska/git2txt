@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import meow from 'meow';
-import degit from 'degit';
 import ora from 'ora';
 import chalk from 'chalk';
 import { glob } from 'glob';
@@ -11,7 +10,10 @@ import { fileURLToPath } from 'url';
 import { filesize as formatFileSize } from 'filesize';
 import { isBinaryFile } from 'isbinaryfile';
 import os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
+const execAsync = promisify(exec);
 
 const helpText = `
   ${chalk.bold('Usage')}
@@ -58,24 +60,22 @@ function normalizeGitHubUrl(url) {
         // Remove trailing slashes
         url = url.replace(/\/+$/, '');
         
-        // Handle full HTTPS URLs
-        if (url.startsWith('https://github.com/')) {
-            url = url.replace('https://github.com/', '');
-        }
-        
         // Handle git@ URLs
         if (url.startsWith('git@github.com:')) {
-            url = url.replace('git@github.com:', '');
+            return url;
         }
         
-        // Split into owner and repo
-        const [owner, repo] = url.split('/');
-        
-        if (!owner || !repo) {
-            throw new Error('Invalid GitHub repository URL format');
+        // Handle full HTTPS URLs
+        if (url.startsWith('https://github.com/')) {
+            return url;
         }
         
-        return `github:${owner}/${repo}`;  // Changed to use github: prefix
+        // Handle short format (user/repo)
+        if (url.match(/^[\w-]+\/[\w-]+$/)) {
+            return `https://github.com/${url}`;
+        }
+        
+        throw new Error('Invalid GitHub repository URL format');
     } catch (error) {
         throw new Error(`Invalid GitHub URL: ${url}`);
     }
@@ -103,27 +103,26 @@ export async function downloadRepository(url) {
     try {
         // Normalize the GitHub URL
         const normalizedUrl = normalizeGitHubUrl(url);
-        const repoName = normalizedUrl.split('/').pop();
+        const repoName = url.split('/').pop().replace('.git', '');
         
         if (cli.flags.debug) {
             console.log(chalk.blue('Debug: Normalized URL:'), normalizedUrl);
             console.log(chalk.blue('Debug: Temp directory:'), tempDir);
         }
 
-        // Create degit emitter with specific options
-        const emitter = degit(normalizedUrl, {
-            force: true,
-            verbose: cli.flags.debug
-        });
+        // Create temp directory
+        await fs.mkdir(tempDir, { recursive: true });
 
-        // Add info handler for debugging
-        emitter.on('info', info => {
-            if (cli.flags.debug) {
-                console.log(chalk.blue('Debug:'), info.message);
-            }
-        });
+        // Clone the repository
+        const cloneCommand = `git clone --depth 1 ${normalizedUrl} ${tempDir}`;
+        
+        if (cli.flags.debug) {
+            console.log(chalk.blue('Debug: Executing command:'), cloneCommand);
+        }
 
-        await emitter.clone(tempDir);
+        await execAsync(cloneCommand, {
+            maxBuffer: 1024 * 1024 * 100 // 100MB buffer
+        });
         
         // Verify the download
         const files = await fs.readdir(tempDir);
@@ -144,15 +143,11 @@ export async function downloadRepository(url) {
             console.log(chalk.blue('Debug: Full error:'), error);
         }
         
-        // Provide more helpful error messages
-        if (error.code === 'MISSING_REF') {
-            console.error(chalk.red('Error: Could not access the repository. Please check:'));
-            console.error(chalk.yellow('  1. The repository exists and is public'));
-            console.error(chalk.yellow('  2. You have the correct repository URL'));
-            console.error(chalk.yellow('  3. GitHub is accessible from your network'));
-        } else {
-            console.error(chalk.red('Download error:'), error.message || error);
-        }
+        console.error(chalk.red('Error: Could not access the repository. Please check:'));
+        console.error(chalk.yellow('  1. The repository exists and is public'));
+        console.error(chalk.yellow('  2. You have the correct repository URL'));
+        console.error(chalk.yellow('  3. GitHub is accessible from your network'));
+        console.error(chalk.yellow('  4. Git is installed and accessible from command line'));
         
         // Clean up temp directory in case of failure
         await cleanup(tempDir);
@@ -248,7 +243,6 @@ export async function processFiles(directory, options) {
     }
 }
 
-// writeOutput and cleanup functions remain the same...
 export async function writeOutput(content, outputPath) {
     const spinner = ora('Writing output file...').start();
 
@@ -270,7 +264,6 @@ export async function cleanup(directory) {
     }
 }
 
-// Modified main program with better error handling
 export async function main() {
     let tempDir;
     try {
@@ -306,4 +299,6 @@ export async function main() {
 }
 
 // Only run main if this is the main module
-main();
+///if (import.meta.url === `file://${process.argv[1]}`) {
+    main();
+//}
