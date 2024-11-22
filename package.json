@@ -1,6 +1,6 @@
 {
   "name": "git2txt",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "CLI tool to convert GitHub repositories to text files",
   "main": "index.js",
   "bin": {
