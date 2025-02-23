@@ -20,10 +20,8 @@
 import meow from 'meow';
 import ora from 'ora';
 import chalk from 'chalk';
-import { glob } from 'glob';
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { filesize as formatFileSize } from 'filesize';
 import { isBinaryFile } from 'isbinaryfile';
 import os from 'os';
