@@ -229,6 +229,7 @@ export async function processFiles(directory, options) {
     let output = '';
     let processedFiles = 0;
     let skippedFiles = 0;
+    let omittedFiles = 0;
 
     /**
      * Recursively processes files in a directory
@@ -279,7 +280,12 @@ export async function processFiles(directory, options) {
                 let content = await fs.readFile(fullPath, 'utf8');
 
                 if (options.maxFiles && processedFiles >= options.maxFiles) {
-                    content = `[Omitted: maximum number of files reached]\n`;
+                    omittedFiles++
+                    if (omittedFiles === 1) {
+                        output += `\n**** File: ${relativePath}, size: ${formatFileSize(stats.size)}\n`;
+                        output += `This file and all following files were omitted due to max-files limit.\n`
+                    }
+                    continue
                 }
 
                 if (options.truncate && stats.size > thresholdBytes) {
@@ -287,10 +293,7 @@ export async function processFiles(directory, options) {
                     content = `${truncatedContent}\n\n[Truncated: File size exceeds ${options.threshold} MB]\n`;
                 }
                 
-                output += `\n${'='.repeat(80)}\n`;
-                output += `File: ${relativePath}\n`;
-                output += `Size: ${formatFileSize(stats.size)}\n`;
-                output += `${'='.repeat(80)}\n\n`;
+                output += `\n**** File: ${relativePath}, size: ${formatFileSize(stats.size)}\n\n`;
                 output += `${content}\n`;
                 
                 processedFiles++;
@@ -309,13 +312,16 @@ export async function processFiles(directory, options) {
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             if (entry.isDirectory()) {
+                const relativePath = path.relative(directory, fullPath);
                 if (options.ignorePatterns) {
-                    const relativePath = path.relative(directory, fullPath);
                     if (options.ignorePatterns.some(pattern => minimatch(relativePath, pattern))) {
                         if (process.env.DEBUG) console.log(`Skipping ignored directory: ${entry.name}`);
                         continue;
                     }
                 }
+
+                output += `\n`;
+                output += `**** Directory: ${relativePath}`;
 
                 // Recursively process subdirectories
                 await processDirectory(fullPath);
@@ -334,6 +340,11 @@ export async function processFiles(directory, options) {
 
         if (processedFiles === 0 && process.env.DEBUG) {
             console.warn('Warning: No files were processed');
+        }
+
+        if (omittedFiles > 0) {
+            output += "\n\n"
+            output += `Total ${omittedFiles} files were omitted due to the maxFiles limit\n`
         }
 
         return output;
