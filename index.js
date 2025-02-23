@@ -27,6 +27,7 @@ import { isBinaryFile } from 'isbinaryfile';
 import os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import  { minimatch } from 'minimatch';
 
 const execAsync = promisify(exec);
 
@@ -38,7 +39,10 @@ const helpText = `
   ${chalk.bold('Options')}
     --output, -o     Specify output file path
     --threshold, -t  Set file size threshold in MB (default: 0.5)
+    --max-files      Maximum number of files to process, use 0 for unlimited (default: 0)
+    --truncate       Truncate large files instead of skipping them
     --include-all    Include all files regardless of size or type
+    --ignore         Comma-separated list of glob patterns to ignore
     --debug         Enable debug mode with verbose logging
     --help          Show help
     --version       Show version
@@ -74,9 +78,21 @@ export const cli = meow(helpText, {
             shortFlag: 't',
             default: 0.1
         },
+        truncate: {
+            type: 'boolean',
+            default: false
+        },
+        maxFiles: {
+            type: 'number',
+            default: 0
+        },
         includeAll: {
             type: 'boolean',
             default: false
+        },
+        ignore: {
+            type: 'string',
+            default: ''
         },
         debug: {
             type: 'boolean',
@@ -224,9 +240,8 @@ export async function processFiles(directory, options) {
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
             
-            if (entry.isDirectory() && entry.name !== 'node_modules' && entry.name !== '.git') {
-                // Recursively process subdirectories
-                await processDirectory(fullPath);
+            if (entry.isDirectory()) {
+                // Traverse subdirectories last. This is important for maxFiles option.
                 continue;
             }
 
@@ -236,7 +251,7 @@ export async function processFiles(directory, options) {
                 const stats = await fs.stat(fullPath);
 
                 // Skip if file is too large and we're not including all files
-                if (!options.includeAll && stats.size > thresholdBytes) {
+                if (!options.includeAll && stats.size > thresholdBytes && !options.truncate) {
                     if (process.env.DEBUG) console.log(`Skipping large file: ${entry.name}`);
                     skippedFiles++;
                     continue;
@@ -251,8 +266,26 @@ export async function processFiles(directory, options) {
                     }
                 }
 
-                const content = await fs.readFile(fullPath, 'utf8');
                 const relativePath = path.relative(directory, fullPath);
+
+                if (options.ignorePatterns) {
+                    if (options.ignorePatterns.some(pattern => minimatch(relativePath, pattern))) {
+                        if (process.env.DEBUG) console.log(`Skipping ignored file: ${entry.name}`);
+                        skippedFiles++;
+                        continue;
+                    }
+                }
+
+                let content = await fs.readFile(fullPath, 'utf8');
+
+                if (options.maxFiles && processedFiles >= options.maxFiles) {
+                    content = `[Omitted: maximum number of files reached]\n`;
+                }
+
+                if (options.truncate && stats.size > thresholdBytes) {
+                    const truncatedContent = content.slice(0, thresholdBytes);
+                    content = `${truncatedContent}\n\n[Truncated: File size exceeds ${options.threshold} MB]\n`;
+                }
                 
                 output += `\n${'='.repeat(80)}\n`;
                 output += `File: ${relativePath}\n`;
@@ -270,6 +303,23 @@ export async function processFiles(directory, options) {
                     console.error(`Error processing ${entry.name}:`, error);
                 }
                 skippedFiles++;
+            }
+        }
+
+        for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (options.ignorePatterns) {
+                    const relativePath = path.relative(directory, fullPath);
+                    if (options.ignorePatterns.some(pattern => minimatch(relativePath, pattern))) {
+                        if (process.env.DEBUG) console.log(`Skipping ignored directory: ${entry.name}`);
+                        continue;
+                    }
+                }
+
+                // Recursively process subdirectories
+                await processDirectory(fullPath);
+                continue;
             }
         }
     }
@@ -333,6 +383,11 @@ export async function cleanup(directory) {
     }
 }
 
+const alwaysIgnored = [
+    'node_modules',
+    '.git',
+]
+
 /**
  * Main application function that orchestrates the entire process
  * @returns {Promise<void>}
@@ -348,7 +403,10 @@ export async function main() {
             const outputPath = cli.flags.output || `${result.repoName}.txt`;
             const content = await processFiles(tempDir, {
                 threshold: cli.flags.threshold,
-                includeAll: cli.flags.includeAll
+                includeAll: cli.flags.includeAll,
+                ignorePatterns: cli.flags.ignore.split(',').concat(alwaysIgnored),
+                truncate: cli.flags.truncate,
+                maxFiles: cli.flags.maxFiles
             });
 
             if (!content) {
