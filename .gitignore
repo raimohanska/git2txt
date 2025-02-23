@@ -1,3 +1,6 @@
+# Default output file
+/*.txt
+
 # Logs
 logs
 *.log
