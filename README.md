@@ -46,9 +46,12 @@ The tool accepts these GitHub repository URL formats:
 ### Options
 
 ```
---output, -o     Specify output file path (default: repo-name.txt)
---threshold, -t  Set file size threshold in MB (default: 0.1)
+--output, -o     Specify output file path
+--threshold, -t  Set file size threshold in MB (default: 0.5)
+--max-files      Maximum number of files to process, use 0 for unlimited (default: 0)
+--truncate       Truncate large files instead of skipping them
 --include-all    Include all files regardless of size or type
+--ignore         Comma-separated list of glob patterns to ignore
 --debug         Enable debug mode with verbose logging
 --help          Show help
 --version       Show version
